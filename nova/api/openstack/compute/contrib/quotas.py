@@ -97,15 +97,24 @@ class QuotaSetsController(wsgi.Controller):
     def show(self, req, id):
         ### The id here is the project hierarchy in the API URL
         context = req.environ['nova.context']
-        authorize_show(context)
         params = urlparse.parse_qs(req.environ.get('QUERY_STRING', ''))
         user_id = None
         if self.ext_mgr.is_loaded('os-user-quotas'):
             user_id = params.get('user_id', [None])[0]
+
+        complete_id = context.project_id + '.' + id
+        """complete_id will be something like projH.projA.projA1 i.e starting
+        from the root to the level at which the operation is being executed
+        """
+
+        target = {'project_id': complete_id,
+                  'user_id': user_id}
+        authorize_show(context, target)
         try:
-            nova.context.authorize_project_context(context, id)
-            return self._format_quota_set(id,
-                    self._get_quotas(context, id, user_id=user_id))
+            nova.context.authorize_project_context(context, complete_id)
+            return self._format_quota_set(complete_id,
+                    self._get_quotas(context, complete_id, user_id=user_id))
+            ### The Quotas table also stores the complete heirarchy
         except exception.NotAuthorized:
             raise webob.exc.HTTPForbidden()
 
